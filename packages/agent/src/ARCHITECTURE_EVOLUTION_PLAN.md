@@ -2,14 +2,14 @@
 
 ## 1. 演进愿景与核心痛点
 
-当前的 `pi-agent-core` 是一个极其优秀的**“交互式 Copilot 引擎”**，其 `agent-loop` 提供了细粒度的流式渲染、并发工具调度以及被动式的人机打断（Steering）机制。
+当前的 `pi-agent-core` 是一个极其优秀的**“交互式 Copilot 引擎”**，其 `agent-loop` 提供了细粒度的流式渲染、并发工具调度以及被动式的人机打断（Steering）机制。同时，它的上层应用形态 `coding-agent` (Terminal / RPC) 通过 `AgentSession` 和 `ExtensionRunner` 提供了强大的外围工程支持（如会话持久化、树状历史分支管理以及基于强制摘要的 Auto-Compaction）。
 
 然而，在面对真正的 **Agent-to-Agent (A2A) 复杂协同** 和 **长时间无人值守的自主运行 (Autonomous Agent)** 需求时，暴露出了以下架构瓶颈：
-1. **渠道单一化**：底层必须将各种消息降维折叠为 `user/assistant/toolResult`。模型难以区分“人类指令”与“其他 Agent 的同侪建议”。
-2. **缺乏自主循环**：代理的运行严重依赖外部 Prompt 驱动（无输入即停机），没有内在的“心跳（Heartbeat）”或“目标驱动循环”。
-3. **缺乏生理/心理状态反馈**：核心运行环境仅仅追踪上下文和执行中工具，对代理自身的资源消耗（如 Context Window 余量）、角色连贯性衰减等缺乏感知，进而无法由代理在框架内进行主动干预。
+1. **渠道单一化**：底层必须将各种消息降维折叠为 `user/assistant/toolResult`。模型难以区分“人类指令”与“其他 Agent 的同侪建议”。在查阅 `coding-agent` 源码后，确认目前没有任何原生 A2A 通信隧道的概念。
+2. **缺乏自主循环**：代理的运行严重依赖外部 Prompt 驱动（无输入即停机），没有内在的“心跳（Heartbeat）”或“目标驱动循环”。`coding-agent` 同样也是纯事件驱动的（敲击回车才触发），没有任何定时轮询或自主复苏机制。
+3. **缺乏生理/心理状态反馈**：核心运行环境仅仅追踪上下文和执行中工具，对代理自身的资源消耗（如 Context Window 余量）、角色连贯性衰减等缺乏感知，进而无法由代理在框架内进行主动干预。`coding-agent` 遇到上下文爆窗也只是被动地阻断并摘要旧记录。
 
-本改造方案旨在**不破坏现有核心运行流（向下兼容）**的前提下，为 agent 植入“状态基座”、“记忆与灵魂隔离”以及“基于心跳的小脑调度系统”。
+本改造方案旨在**不破坏现有核心运行流（向下兼容）**的前提下，为 agent 植入“状态基座”，并充分利用 `coding-agent` 优秀的 **Extension (中间件热插拔)** 机制，以外围生态的方式实现“记忆与灵魂隔离”以及“基于心跳的小脑调度系统”。
 
 ---
 
@@ -39,15 +39,16 @@ export interface AgentState {
 }
 ```
 
-**影响面**：纯增量字段，不影响旧的 Copilot 业务逻辑。它可以通过 `agent.subscribe` 将状态变化广播给外层的“小脑”进行监听与决策。
+**影响面**：纯增量字段，不影响旧的 Copilot 业务逻辑。它可以通过 `agent.subscribe` 将状态变化（或新增的 `state_changed` 事件）广播给外层的“小脑”（例如一个专门的 Extension）进行监听与决策。
 
 ---
 
-### 2.2 强化 A2A 的身份通道隔离 (Channels Abstracting)
-大模型在 `convertToLlm` 阶段虽不得不将消息折叠为大模型 API 支持的 `user` 或 `tool`，但我们可以在上层规范一套“**注入元数据 (Metadata Injection)**”机制，保证 LLM 能准确分辨消息来源。
+### 2.2 强化 A2A 的身份通道隔离 (Channels Abstracting) 与元数据注入
+大模型在 `convertToLlm` 阶段虽不得不将消息折叠为大模型 API 支持的 `user` 或 `tool`，但我们可以极低成本地在包装层解决。
 
-**改造切入点：约束 `System Prompt` 与 `transformContext` 阶段**
-在进入 LLM 之前，利用 `transformContext` 钩子，统一自动包装上下文元数据：
+**改造切入点：利用 `coding-agent` 的 Extension 钩子 (`on("context")`) 或强化底层的 `transformContext`**
+
+无需在底层硬编码复杂的解析逻辑，通过编写一个极轻量级的 Extension 中间件，拦截发往 LLM 前的 `messages` 数组，统一自动包装上下文元数据：
 
 ```xml
 <!-- 注入的格式标准范例 -->
@@ -60,51 +61,36 @@ export interface AgentState {
     这是另一个 Agent 传来的审查意见...
 </incoming_message>
 ```
-通过规范化这种前缀注入，彻底实现与常规“用户系统指令”的逻辑物理隔离。
+通过规范化这种前缀注入（拦截并修改 `ContextEvent`），彻底实现与其他 Agent 通信与常规“用户系统指令”的逻辑物理隔离。
 
 ---
 
 ### 2.3 记忆与灵魂的分离底座 (Soul & Memory Controllers)
-大模型记忆不应随简单的 `agent.messages.push()` 无限膨胀。
+大模型记忆不应随简单的 `agent.messages.push()` 无限膨胀，也不应仅仅依赖 `coding-agent` 简单粗暴的 Auto-Compaction 阻断机制。
+
 *   **Soul (灵魂)**：固化的 `System Prompt`（我是一个前端专家，我的终极目标是保证组件复用性），永不修剪。
-*   **Memory (工作记忆)**：需在上层封装一套外挂系统，允许监听核心暴露出的 `agent.state.entityState.metrics.contextWindowUsage`。当感知到上下文逼近阈值（如 >80%）时：
-    1. 小脑系统介入拦截。
-    2. 触发专门的 Summarization/RAG 工作流。
-    3. 利用 `agent.replaceMessages()` 大幅截断旧数组，替换为被浓缩后的 Memory Snapshot 摘要消息。
+*   **Memory (工作/长期记忆)**：利用上层 Extension 监听底层暴露出的 `agent.state.entityState.metrics.contextWindowUsage`。当感知到上下文状态变化时，由外围插件主动决策是否触发专属的 Summarization 或 Memory RAG 检索，然后组装更新上下的 Context，实现比底层被动挤牙膏更优雅的记忆管理。
 
 ---
 
-### 2.4 基于小脑调度系统的主动心跳循环 (Heartbeat Driven Cerebellum)
-这是最为关键的**自治引擎升级**。打破“必须由 User 说话才触发”的死板束缚，为 `agentLoop` 的最底层增加基于心跳的流转机制。
+### 2.4 基于扩展系统的主动心跳循环 (Heartbeat Driven Cerebellum)
+这是最为关键的**自治引擎升级**。打破“必须由 User 说话才触发”的死板束缚。相比于硬改底层的 `agent-loop`（虽然之前构思了 `onHeartbeatCheck` 钩子），更优雅的方式是利用现有的环境。
 
-**改造切入点：`packages/agent/src/agent.ts` 或 `types.ts -> AgentLoopConfig`**
-在循环的边界处埋设监听/请求钩子：
+**改造切入点：`coding-agent` 生态下的驻留 Extension (Background Automation / AutonomousSession)**
 
-```typescript
-// 设想中的 AgentLoopConfig 增强
-export interface AgentLoopConfig {
-    // ... 现有配置
-    /** 
-     * 心跳询问钩子 (小脑介入点)
-     * 在当前 Agent 行动（Turn）静默后被内核调用，询问是否需要内部唤醒
-     */
-    onHeartbeatCheck?: (state: AgentState) => Promise<HeartbeatDecision>;
-}
+在不砸烂现有 `AgentSession` 控制台入口的基础上：
+1. 编写或外挂一个驻留的 Extension 插件。
+2. 该插件内部包含自动轮询（例如 `setInterval` 或基于其他事件触发）的时钟。
+3. 结合底层的 `EntityState` 暴露，自主判断是否要发送内部驱动消息。
+4. 调用 `ExtensionContext` 提供的 `ctx.sendUserMessage()` 或 `ctx.sendMessage({ triggerTurn: true })`，向底层引擎发送不可见的隐式内部 Prompt，强行唤醒因缺乏用户回车而陷入等待的 `agent-loop`。
 
-export type HeartbeatDecision = 
-    | { type: "sleep", nextCheckMs: number } // 继续待机
-    | { type: "wake", internalPrompt: string } // 被内部目标唤醒，自动给自己发一条隐式 prompting
-    | { type: "maintenance", toolsToCall: string[] }; // 进入维护模式（如：强制压缩记忆）
-```
-
-当 `agent-loop` 发现本轮没有工具调用也没有外来消息时，它不再直接 `break` 结束 `agent_end`，而是通过 `onHeartbeatCheck` 询问挂载的“小脑系统”。
-若小脑基于 `EntityState`（例如发现存在未完成的长期目标，且精力充沛）决定返回 `wake`，引擎将把 `internalPrompt` 作为一轮新的事件驱动，自我推进。
+这种架构设计把“自治规划”与“底层指令执行”做到了完美的解耦。
 
 ---
 
 ## 3. 下一步行动计划
 
-1. **评审阶段（当前）**：审视本方案的核心切入点，确认它们对原有框架 `agent_end` 等事件流的影响是否安全可控。
-2. **PoC 验证（Phase 1）**：在 `types.ts` 和 `agent.ts` 中完成 `EntityState` 的强类型植入与状态初始化。暴露给外层验证可修改性。
-3. **小脑机制接入（Phase 2）**：尝试在 `agent-loop.ts` 的 `runLoop` 末尾增加退出条件的拦截器（Heartbeat 概念设计落地）。
-4. **内存池联调（Phase 3）**：实现通过 `transformContext` 自动注入格式化状态快照与外接 Memory 钩子。
+1. **底层状态扩容（Phase 1）**：在 `packages/agent/src/types.ts` 和 `agent.ts` 中完成 `EntityState` 的强类型植入与状态初始化。通过 `AgentEvent` 暴露给上层。
+2. **事件钩子适配（Phase 2）**：确认 `coding-agent` 层的 `ExtensionRunner` 能够无损捕获我们新增的底层状态变化。
+3. **心跳中间件 PoC（Phase 3）**：基于 `coding-agent` 的 Plugin/Extension 机制，编写一个探索性质的 Heartbeat 插件，尝试不依赖人类键盘敲击，由后台挂起的时钟结合状态变量自主唤醒引擎（发送隐式指令或唤起目标审查）。
+4. **元数据网关联调（Phase 4）**：利用 `ContextEvent` 钩子进行 A2A 元数据和记忆快照动态注入的测试。
