@@ -58,7 +58,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/badlogic/pi-mono.git",
+		"url": "git+https://github.com/sealiu1997/pi-mono.git",
 		"directory": "packages/agent-state-self-regulation"
 	},
 	"engines": {
