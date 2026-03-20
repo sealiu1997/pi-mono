@@ -36,6 +36,7 @@ import type {
 	MessageRenderer,
 	RegisteredCommand,
 	RegisteredTool,
+	RequestNewSessionOptions,
 	ResourcesDiscoverEvent,
 	ResourcesDiscoverResult,
 	SessionBeforeCompactResult,
@@ -210,6 +211,7 @@ export class ExtensionRunner {
 	private hasPendingMessagesFn: () => boolean = () => false;
 	private getContextUsageFn: () => ContextUsage | undefined = () => undefined;
 	private compactFn: (options?: CompactOptions) => void = () => {};
+	private requestNewSessionFn: (options?: RequestNewSessionOptions) => void = () => {};
 	private getSystemPromptFn: () => string = () => "";
 	private newSessionHandler: NewSessionHandler = async () => ({ cancelled: false });
 	private forkHandler: ForkHandler = async () => ({ cancelled: false });
@@ -260,6 +262,7 @@ export class ExtensionRunner {
 		this.shutdownHandler = contextActions.shutdown;
 		this.getContextUsageFn = contextActions.getContextUsage;
 		this.compactFn = contextActions.compact;
+		this.requestNewSessionFn = contextActions.requestNewSession ?? (() => {});
 		this.getSystemPromptFn = contextActions.getSystemPrompt;
 
 		// Flush provider registrations queued during extension loading
@@ -519,6 +522,7 @@ export class ExtensionRunner {
 			shutdown: () => this.shutdownHandler(),
 			getContextUsage: () => this.getContextUsageFn(),
 			compact: (options) => this.compactFn(options),
+			requestNewSession: (options) => this.requestNewSessionFn(options),
 			getSystemPrompt: () => this.getSystemPromptFn(),
 		};
 	}

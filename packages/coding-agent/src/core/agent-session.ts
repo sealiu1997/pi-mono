@@ -2163,6 +2163,19 @@ export class AgentSession {
 						}
 					})();
 				},
+				requestNewSession: (options) => {
+					void (async () => {
+						try {
+							const result = this._extensionCommandContextActions?.newSession
+								? await this._extensionCommandContextActions.newSession()
+								: { cancelled: !(await this.newSession()) };
+							options?.onComplete?.(result);
+						} catch (error) {
+							const err = error instanceof Error ? error : new Error(String(error));
+							options?.onError?.(err);
+						}
+					})();
+				},
 				getSystemPrompt: () => this.systemPrompt,
 			},
 		);

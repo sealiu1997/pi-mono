@@ -1,0 +1,67 @@
+{
+	"name": "@mariozechner/pi-agent-state-self-regulation",
+	"version": "0.58.4",
+	"description": "Self-regulation extension package for pi-coding-agent with runtime state assessment and compaction profiles",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./extension": {
+			"types": "./dist/extension.d.ts",
+			"import": "./dist/extension.js"
+		}
+	},
+	"files": [
+		"dist",
+		"docs",
+		"README.md",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"dev": "tsgo -p tsconfig.build.json --watch --preserveWatchOutput",
+		"check": "tsgo -p tsconfig.build.json --noEmit",
+		"test": "vitest --run",
+		"prepublishOnly": "npm run clean && npm run build"
+	},
+	"pi": {
+		"extensions": [
+			"./dist/extension.js"
+		]
+	},
+	"dependencies": {
+		"@sinclair/typebox": "^0.34.41"
+	},
+	"peerDependencies": {
+		"@mariozechner/pi-coding-agent": "^0.58.4"
+	},
+	"devDependencies": {
+		"@types/node": "^24.3.0",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"keywords": [
+		"pi-package",
+		"pi",
+		"agent",
+		"extension",
+		"context-window",
+		"compaction"
+	],
+	"author": "Mario Zechner",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/badlogic/pi-mono.git",
+		"directory": "packages/agent-state-self-regulation"
+	},
+	"engines": {
+		"node": ">=20.6.0"
+	}
+}
