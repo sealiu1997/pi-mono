@@ -1,5 +1,5 @@
 {
-	"name": "@mariozechner/pi-agent-state-self-regulation",
+	"name": "@sealiu1997/pi-agent-state-self-regulation",
 	"version": "0.58.4",
 	"description": "Self-regulation extension package for pi-coding-agent with runtime state assessment and compaction profiles",
 	"type": "module",

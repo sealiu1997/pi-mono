@@ -94,7 +94,7 @@ npm pack
 在目标项目中安装生成的 tarball：
 
 ```bash
-npm install /absolute/path/to/mariozechner-pi-agent-state-self-regulation-0.58.4.tgz @mariozechner/pi-coding-agent
+npm install /absolute/path/to/sealiu1997-pi-agent-state-self-regulation-0.58.4.tgz @mariozechner/pi-coding-agent
 ```
 
 对于基于 `pi-mono` 内核的其他 agent，推荐优先使用这种方式。
@@ -104,7 +104,7 @@ npm install /absolute/path/to/mariozechner-pi-agent-state-self-regulation-0.58.4
 ### 1. 作为默认 pi package 入口加载
 
 ```ts
-import agentStateSelfRegulationExtension from "@mariozechner/pi-agent-state-self-regulation/extension";
+import agentStateSelfRegulationExtension from "@sealiu1997/pi-agent-state-self-regulation/extension";
 
 export default agentStateSelfRegulationExtension;
 ```
@@ -112,7 +112,7 @@ export default agentStateSelfRegulationExtension;
 ### 2. 以编程方式注册
 
 ```ts
-import { createAgentStateSelfRegulationExtension } from "@mariozechner/pi-agent-state-self-regulation";
+import { createAgentStateSelfRegulationExtension } from "@sealiu1997/pi-agent-state-self-regulation";
 
 const extension = createAgentStateSelfRegulationExtension({
 	config: {
@@ -128,12 +128,106 @@ const extension = createAgentStateSelfRegulationExtension({
 
 - `config.contextThresholds`  
   调整 `normal / tight / critical` 的上下文阈值
+- `customProbes`  
+  注册宿主内的自定义 probe，并把状态回流到 regulation state
 - `scriptProbes`  
   从外部命令采集 JSON 数据，并注入经过清洗的结构化 prompt 字段
 - `assessmentExtenders`  
   在默认 assessment 基础上追加或改写评估结果
 - `compactionProfiles`  
   注册额外的 compaction profile
+
+## 高级扩展
+
+### `scriptProbes`
+
+`scriptProbes` 适合接入外部脚本、宿主探针或自定义健康检查。
+
+最小配置示例：
+
+```ts
+import { createAgentStateSelfRegulationExtension } from "@sealiu1997/pi-agent-state-self-regulation";
+
+const extension = createAgentStateSelfRegulationExtension({
+	scriptProbes: [
+		{
+			key: "workspace_health",
+			command: "node",
+			args: ["./scripts/workspace-health.mjs"],
+			timeoutMs: 400,
+		},
+	],
+});
+```
+
+脚本需要输出一个 JSON 对象，推荐格式如下：
+
+```json
+{
+  "status": "tight",
+  "reason": "workspace is in read-only mode",
+  "data": {
+    "queueDepth": 3
+  },
+  "promptData": {
+    "workspace_mode": "read_only",
+    "queue_depth": 3
+  }
+}
+```
+
+说明：
+
+- `status` 可选，允许值为 `normal`、`tight`、`critical`、`unknown`，默认是 `normal`
+- `data` 会保留在 regulation state 中，供 `get_state` 等工具读取
+- `promptData` 会被清洗后注入 prompt，但只保留顶层标量值：`string`、`number`、`boolean`、`null`
+- probe 进程以 `shell: false` 启动
+- 默认超时为 `500ms`
+- 默认最大输出为 `4096 bytes`
+- 默认最多注入 `6` 个 prompt 字段，单个字段最大长度 `160` 个字符
+
+### `assessmentExtenders`
+
+`assessmentExtenders` 用于在默认评估结果上做二次修正，例如结合业务规则或外部探针信号提升风险等级。
+
+最小示例：
+
+```ts
+import { createAgentStateSelfRegulationExtension } from "@sealiu1997/pi-agent-state-self-regulation";
+
+const extension = createAgentStateSelfRegulationExtension({
+	assessmentExtenders: [
+		{
+			id: "workspace_policy",
+			extend({ assessment, snapshot }) {
+				const workspaceProbe = snapshot.custom.workspace_health;
+				if (!workspaceProbe || workspaceProbe.status === "normal") {
+					return;
+				}
+
+				return {
+					assessment: {
+						...assessment,
+						level: "critical",
+						reasons: [...assessment.reasons, "Workspace policy escalated runtime cleanup urgency."],
+						suggestedActions: ["compact_standard", "compact_aggressive"],
+						selectedProfile: "standard",
+					},
+					promptData: {
+						workspace_policy: workspaceProbe.status,
+					},
+				};
+			},
+		},
+	],
+});
+```
+
+说明：
+
+- extender 可以改写 `assessment`
+- extender 也可以追加结构化 `promptData`
+- 如果 extender 抛错，插件会保守降级，不会直接中断整个请求
 
 ## 工具接口
 

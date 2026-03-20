@@ -133,13 +133,13 @@ chmod +x "$TMP_SCRIPT"
 Recommended programmatic wiring sample:
 
 ```ts
-import { createAgentStateSelfRegulationExtension } from "@mariozechner/pi-agent-state-self-regulation";
+import { createAgentStateSelfRegulationExtension } from "@sealiu1997/pi-agent-state-self-regulation";
 
 const extension = createAgentStateSelfRegulationExtension({
   scriptProbes: [
     {
-      id: "manual-smoke",
-      command: [process.env.TMP_SCRIPT!],
+      key: "manual-smoke",
+      command: process.env.TMP_SCRIPT!,
       timeoutMs: 500,
     },
   ],
@@ -188,7 +188,7 @@ Checklist:
 Optional tarball inspection:
 
 ```bash
-tar -tzf "$PKG"/mariozechner-pi-agent-state-self-regulation-*.tgz
+tar -tzf "$PKG"/sealiu1997-pi-agent-state-self-regulation-*.tgz
 ```
 
 Pass criteria:
@@ -209,9 +209,9 @@ One simple approach:
 TMP_DIR="$(mktemp -d)"
 cd "$TMP_DIR"
 npm init -y
-npm install "$PKG"/mariozechner-pi-agent-state-self-regulation-*.tgz @mariozechner/pi-coding-agent
+npm install "$PKG"/sealiu1997-pi-agent-state-self-regulation-*.tgz @mariozechner/pi-coding-agent
 cd "$REPO"
-./pi-test.sh --no-extensions -e "$TMP_DIR/node_modules/@mariozechner/pi-agent-state-self-regulation"
+./pi-test.sh --no-extensions -e "$TMP_DIR/node_modules/@sealiu1997/pi-agent-state-self-regulation"
 ```
 
 Checklist:
@@ -229,7 +229,7 @@ Pass criteria:
 
 Observed notes:
 
-- This round passed from an installed package path under `node_modules/@mariozechner/pi-agent-state-self-regulation`.
+- This round passed from an installed package path under `node_modules/@sealiu1997/pi-agent-state-self-regulation`.
 - `get_state` was verified directly in print mode.
 - `compact` and `new_session` were verified with host side effects:
   - installed-package `compact` produced a real `type:"compaction"` session entry.
@@ -412,7 +412,7 @@ chmod +x "$TMP_SCRIPT"
 建议的程序化接线示例：
 
 ```ts
-import { createAgentStateSelfRegulationExtension } from "@mariozechner/pi-agent-state-self-regulation";
+import { createAgentStateSelfRegulationExtension } from "@sealiu1997/pi-agent-state-self-regulation";
 
 const extension = createAgentStateSelfRegulationExtension({
   scriptProbes: [
@@ -467,7 +467,7 @@ npm pack
 可选的 tarball 检查：
 
 ```bash
-tar -tzf "$PKG"/mariozechner-pi-agent-state-self-regulation-*.tgz
+tar -tzf "$PKG"/sealiu1997-pi-agent-state-self-regulation-*.tgz
 ```
 
 通过标准：
@@ -488,9 +488,9 @@ tar -tzf "$PKG"/mariozechner-pi-agent-state-self-regulation-*.tgz
 TMP_DIR="$(mktemp -d)"
 cd "$TMP_DIR"
 npm init -y
-npm install "$PKG"/mariozechner-pi-agent-state-self-regulation-*.tgz @mariozechner/pi-coding-agent
+npm install "$PKG"/sealiu1997-pi-agent-state-self-regulation-*.tgz @mariozechner/pi-coding-agent
 cd "$REPO"
-./pi-test.sh --no-extensions -e "$TMP_DIR/node_modules/@mariozechner/pi-agent-state-self-regulation"
+./pi-test.sh --no-extensions -e "$TMP_DIR/node_modules/@sealiu1997/pi-agent-state-self-regulation"
 ```
 
 检查项：
@@ -508,7 +508,7 @@ cd "$REPO"
 
 已观测到的注意事项：
 
-- 这一轮已经从 `node_modules/@mariozechner/pi-agent-state-self-regulation` 的安装包路径通过。
+- 这一轮已经从 `node_modules/@sealiu1997/pi-agent-state-self-regulation` 的安装包路径通过。
 - `get_state` 已直接在 print 模式下验证通过。
 - `compact` 和 `new_session` 通过宿主 side effect 验证：
   - 安装包路径下的 `compact` 已生成真实 `type:"compaction"` 的 session entry。

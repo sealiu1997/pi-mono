@@ -2,7 +2,7 @@
 
 ## Status
 
-This document is now the canonical long-form architecture document for the `@mariozechner/pi-agent-state-self-regulation` package.
+This document is now the canonical long-form architecture document for the `@sealiu1997/pi-agent-state-self-regulation` package.
 
 Completed in the current baseline:
 
@@ -115,7 +115,7 @@ The compatibility boundary is mainly about:
 
 The package is designed for:
 
-- npm distribution as `@mariozechner/pi-agent-state-self-regulation`
+- npm distribution as `@sealiu1997/pi-agent-state-self-regulation`
 - extension loading through the package manifest `pi.extensions`
 - programmatic use via exported factory functions and types
 
@@ -561,7 +561,7 @@ P2 future enhancements:
 
 ## 当前状态
 
-这份文档现在是 `@mariozechner/pi-agent-state-self-regulation` 的规范长文档架构说明。
+这份文档现在是 `@sealiu1997/pi-agent-state-self-regulation` 的规范长文档架构说明。
 
 当前基线已完成：
 
@@ -676,7 +676,7 @@ P2 future enhancements:
 
 这个包面向以下两种使用方式：
 
-- 作为 `@mariozechner/pi-agent-state-self-regulation` 通过 npm 分发
+- 作为 `@sealiu1997/pi-agent-state-self-regulation` 通过 npm 分发
 - 通过 `pi.extensions` 作为可安装 extension 被发现和加载
 - 通过包根导出的 factory 和 types 进行编程式集成
 
