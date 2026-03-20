@@ -84,6 +84,7 @@
 
 - 不应默认全部注入每一轮
 - 需要按需检索和提炼
+- MVP 阶段优先复用现有 context files、skills 和 session 中的持久化状态
 
 ### 3.4 短期记忆
 
@@ -246,6 +247,26 @@ interface WorkingGoalState {
 - Heartbeat 判断目标已过期时
 - 用户显式纠偏时
 
+## 7.3 工作目标刷新契约
+
+MVP 阶段对 `working_goal` 的更新应尽量保守，避免引入额外的模型调用链路。
+
+推荐规则：
+
+1. 默认复用已有 `working_goal_state`
+2. 仅在以下条件满足时触发重新提炼：
+   - 收到新的明确用户任务
+   - compaction 刚结束，原目标可能失真
+   - Heartbeat 将目标标记为 `stale`
+   - 用户显式修正目标
+3. 如果本轮只是补充细节而没有方向变化，只更新状态时间戳，不额外发一条新的 `working_goal` message
+
+MVP 约束：
+
+- 不额外发起一条“专门为了提炼 working goal”的 LLM 请求
+- 优先在正常 turn 的 `before_agent_start` / `context` 注入中附带轻量目标刷新指令
+- 再从本轮结果中提取并持久化新的 `working_goal_state`
+
 ---
 
 ## 8. 插件生命周期
@@ -274,6 +295,11 @@ interface WorkingGoalState {
 - system prompt 只放稳定约束和当前目标摘要
 - 较长的 memory snapshot 放到 custom message 或 `context` 注入
 
+MVP 补充约束：
+
+- 目标刷新尽量 piggyback 在当前 turn 完成
+- 不为 prompt system 单独新增一个额外的 summarizer / planner 请求
+
 ## 8.3 `context`
 
 插件在 `context` 阶段可进行临时上下文注入：
@@ -283,6 +309,13 @@ interface WorkingGoalState {
 - 插入工作目标摘要
 
 这里的注入应尽量是瞬时的，不一定持久化。
+
+长期记忆的 MVP 来源优先级建议为：
+
+1. context files
+2. skills / 项目规则
+3. session 中的 `CustomEntry`
+4. 后续再接外部数据库或检索系统
 
 ## 8.4 `session_before_compact`
 
@@ -335,7 +368,8 @@ Heartbeat 插件不应该自己直接推导复杂目标。
 2. `working_goal_state` 结构化持久化
 3. 用户可见的 `working_goal` custom message
 4. `before_agent_start` 动态组装默认提示词增强段
-5. `session_before_compact` 保证工作目标在 compaction 后能重建
+5. `working_goal` 刷新 piggyback 在正常 turn 上完成
+6. `session_before_compact` 保证工作目标在 compaction 后能重建
 
 先不做：
 
@@ -354,4 +388,3 @@ Heartbeat 插件不应该自己直接推导复杂目标。
 2. Heartbeat 系统可以直接消费 `working_goal`，无需再次推导。
 3. compaction 不会导致工作目标彻底丢失。
 4. 长期记忆与短期上下文不会全部挤进单一 prompt 字符串。
-

@@ -12,6 +12,12 @@
 
 因此 Heartbeat 插件的第一职责是 runtime self-management，第二职责才是 autonomous action readiness。
 
+补充约束：
+
+- context usage 仍然是第一信号
+- 模型连通性、系统内存压力等外部探针只作为次级保守条件
+- 次级探针必须分频执行，不能每个 tick 都跑
+
 ---
 
 ## 2. 设计目标
@@ -85,8 +91,23 @@ Heartbeat 插件的判断依赖以下输入，按重要性排序：
 6. 距离上次 heartbeat 的冷却时间
 7. 最近一次用户活动时间
 8. 当前自治模式是否启用
+9. 低频运行时探针产出的 `runtime_state` / vital signs
 
 其中最核心的是 context usage。
+
+## 5.1 次级探针原则
+
+外部探针适合补充以下事实：
+
+- 模型连通性是否异常
+- 系统内存或磁盘是否进入风险区
+- 是否存在需要全局暂停自治的宿主级故障
+
+但必须满足：
+
+- probe cadence 低于 heartbeat cadence
+- probe 失败默认走保守路径，不触发新自治 turn
+- 这些结果优先写入结构化状态，而不是每次都注入用户可见消息
 
 ---
 
@@ -201,6 +222,7 @@ interface HeartbeatState {
     lastActionAt?: number;
     lastActionType?: string;
     consecutiveNoopCount: number;
+    tickInFlight?: boolean;
     pausedReason?: string;
 }
 ```
@@ -216,6 +238,25 @@ display: true
 
 但初期不建议每次 tick 都展示，以免打扰。
 
+补充建议：
+
+- notice 只在模式切换、风险暂停、恢复运行这类关键时刻展示
+- 历史 heartbeat notice 应在 compaction 中被归纳，避免 session 膨胀
+
+## 8.4 模式约束
+
+保留四级模式定义：
+
+- `observe`
+- `maintain`
+- `assist`
+- `autonomous`
+
+但在 MVP / Phase 0：
+
+- 实际启用范围只到 `maintain`
+- `assist` 和 `autonomous` 先保留类型，不默认落地真实执行逻辑
+
 ---
 
 ## 9. 插件生命周期
@@ -226,7 +267,12 @@ display: true
 
 1. 读取自治配置
 2. 恢复 heartbeat 状态
-3. 启动 timer 或事件驱动调度器
+3. 仅在允许后台运行的模式中启动 timer 或事件驱动调度器
+
+建议：
+
+- `print` 模式默认不启动 heartbeat
+- `rpc` 模式按宿主配置决定是否启动
 
 ## 9.2 `session_shutdown`
 
@@ -240,11 +286,13 @@ display: true
 
 每个 tick 执行：
 
-1. 采集状态
-2. 计算风险等级
-3. 判断是否允许动作
-4. 最多执行一个动作
-5. 更新 `heartbeat_state`
+1. 获取 in-flight 锁，避免 timer 重入
+2. 采集状态
+3. 计算风险等级
+4. 先执行复合安全检查：`ctx.isIdle()`、`!ctx.hasPendingMessages()`、未处于 compaction / retry 冲突窗口、cooldown 已满足
+5. 判断是否允许动作
+6. 最多执行一个动作
+7. 更新 `heartbeat_state`
 
 ---
 
@@ -257,6 +305,7 @@ Heartbeat 插件推荐优先使用以下 extension 能力：
 - `ctx.getContextUsage()`
 - `ctx.compact()`
 - `pi.sendMessage(..., { triggerTurn: true })`
+- `pi.sendUserMessage(...)`
 
 其中，推荐优先用隐藏 custom message 启动内部 turn：
 
@@ -275,6 +324,10 @@ Heartbeat 插件推荐优先使用以下 extension 能力：
 - 更容易和真实用户输入区分
 - 更利于后续调试和导出
 - 更利于 compaction 总结自治行为
+
+不建议默认做法：
+
+- 不优先用 `ctx.*` 发送消息，因为发送消息属于 runtime action，不属于 `ExtensionContext`
 
 ---
 
@@ -307,6 +360,7 @@ Heartbeat 插件必须把 compaction 视为一等事件。
 2. compaction 期间禁止新的自治 turn
 3. compaction 后直到 context usage 再次可观测前，只允许观察模式
 4. compaction 完成后应重新检查 `working_goal` 是否失真
+5. 旧的 heartbeat entries / notices 应在 compaction 时归纳，避免持续膨胀
 
 ---
 
@@ -355,4 +409,3 @@ Heartbeat 插件设计成功时，应满足：
 2. `working_goal` 可被自动刷新，但不会频繁抖动
 3. 自治循环不会和用户输入、retry、compaction 冲突
 4. 后续若要接入自主执行逻辑，只需扩展 action consumer，而无需推翻 Heartbeat 本体
-

@@ -15,6 +15,11 @@
 - 没有稳定的工作目标层，A2A 消息难以落位
 - 没有稳定的 Heartbeat 和 context 管理，A2A 容易放大上下文噪声
 
+补充判断：
+
+- A2A 是“对话抽象化”的一个具体落点
+- 它证明 turn 的触发源不一定是人类，也可以是其他 agent 或系统组件
+
 ---
 
 ## 2. 当前定位
@@ -94,11 +99,15 @@ interface A2AMessageState {
     sourceAgentId: string;
     sourceSessionId?: string;
     messageType: "proposal" | "review" | "handoff" | "status";
-    authority: "advisory" | "required";
     priority: "low" | "normal" | "high";
     createdAt: number;
 }
 ```
+
+说明：
+
+- `authority` 暂不进入 MVP 结构，因为当前没有明确消费方
+- 如果后续真的需要“必须处理”的语义，再在 Phase 2+ 引入
 
 ## 6.2 `a2a` custom message
 
@@ -159,6 +168,11 @@ Heartbeat 可以在未来消费 A2A 状态，例如：
 
 但在 Heartbeat 和工作目标系统没稳定之前，不应让 A2A 反向驱动自治循环。
 
+MVP 约束：
+
+- A2A 先作为输入信号，不作为 heartbeat 的直接驱动器
+- 先解决“能表示、能持久化、能序列化”，再考虑“能调度”
+
 ---
 
 ## 9. 上下文注入策略
@@ -176,7 +190,7 @@ Heartbeat 可以在未来消费 A2A 状态，例如：
 关键要求：
 
 - 文本要紧凑
-- 必须保留来源和权重
+- 必须保留来源和优先级
 - 必须能被 compaction 总结
 
 ---
@@ -212,6 +226,7 @@ A2A 消息在第一阶段应默认可见。
 - 支持本地 extension 产生 `a2a` 消息
 - 支持 session 保存
 - 支持 context serializer
+- 只覆盖 `proposal` / `review` / `status` / `handoff` 这四类基础消息
 - 不做外部协议接入
 
 ## Phase 2: 接入外部协议适配器
@@ -237,7 +252,6 @@ A2A 消息在第一阶段应默认可见。
 A2A 插件在未来真正进入实施时，应满足：
 
 1. 不引入新的 core message role
-2. 能明确标识来源、优先级和 authority
+2. 能明确标识来源、优先级以及后续可能追加的策略元数据
 3. 不把外部协议细节扩散到整个 runtime
 4. 能和工作目标、compaction、Heartbeat 自然协同
-

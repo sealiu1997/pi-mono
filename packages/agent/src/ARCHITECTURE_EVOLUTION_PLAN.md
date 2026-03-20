@@ -1,5 +1,9 @@
 # pi-agent-core 架构演进与自主性重构方案 (Draft)
 
+> 历史草案说明：
+> 本文保留原始设计动机，当前建议以 `ARCHITECTURE_EVOLUTION_PLAN_V2.md` 和 `AGENT_CORE_AUTONOMY_FOUNDATION.md` 为准。
+> V1 中的 `EntityState` 更适合作为历史讨论材料；当前更推荐 `AgentTelemetry`，以及在 PoC 稳定后再评估一个最小的 `runtimeState` slot。
+
 ## 1. 演进愿景与核心痛点
 
 当前的 `pi-agent-core` 是一个极其优秀的**“交互式 Copilot 引擎”**，其 `agent-loop` 提供了细粒度的流式渲染、并发工具调度以及被动式的人机打断（Steering）机制。同时，它的上层应用形态 `coding-agent` (Terminal / RPC) 通过 `AgentSession` 和 `ExtensionRunner` 提供了强大的外围工程支持（如会话持久化、树状历史分支管理以及基于强制摘要的 Auto-Compaction）。
@@ -39,7 +43,13 @@ export interface AgentState {
 }
 ```
 
-**影响面**：纯增量字段，不影响旧的 Copilot 业务逻辑。它可以通过 `agent.subscribe` 将状态变化（或新增的 `state_changed` 事件）广播给外层的“小脑”（例如一个专门的 Extension）进行监听与决策。
+**影响面**：纯增量字段，不影响旧的 Copilot 业务逻辑。它可以通过 `agent.subscribe` 将状态变化（或新增的 `state_change` 事件）广播给外层的“小脑”（例如一个专门的 Extension）进行监听与决策。
+
+补充说明：
+
+- 这是 V1 的原始方向，不再是当前首选落地形态
+- 当前更推荐先在 extension 层验证解释性状态
+- core 先沉淀 telemetry，再决定是否增加最小 `runtimeState` slot
 
 ---
 
@@ -82,7 +92,7 @@ export interface AgentState {
 1. 编写或外挂一个驻留的 Extension 插件。
 2. 该插件内部包含自动轮询（例如 `setInterval` 或基于其他事件触发）的时钟。
 3. 结合底层的 `EntityState` 暴露，自主判断是否要发送内部驱动消息。
-4. 调用 `ExtensionContext` 提供的 `ctx.sendUserMessage()` 或 `ctx.sendMessage({ triggerTurn: true })`，向底层引擎发送不可见的隐式内部 Prompt，强行唤醒因缺乏用户回车而陷入等待的 `agent-loop`。
+4. 调用 extension runtime 提供的 `pi.sendUserMessage()` 或 `pi.sendMessage(..., { triggerTurn: true })`，向底层引擎发送不可见的隐式内部 Prompt，强行唤醒因缺乏用户回车而陷入等待的 `agent-loop`。
 
 这种架构设计把“自治规划”与“底层指令执行”做到了完美的解耦。
 

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Exported `BeforeAgentStartEventResult` and `ContextEventResult` from the public SDK entrypoint to support standalone extension packages.
+- Added `requestNewSession` to the extension runtime context so standalone extensions can trigger the host's fresh-session flow.
+
 ## [0.58.4] - 2026-03-16
 
 ### Fixed

@@ -49,11 +49,17 @@
 建议沉淀的是：
 
 - 当前是否 streaming
-- 当前待处理工具调用数
+- 当前待处理工具调用集合（继续复用现有 `pendingToolCalls`）
 - 最近 turn 的开始和结束时间
 - 最近 stop reason
 - 连续错误计数
 - 上下文 token 估算和窗口大小
+
+补充约束：
+
+- `pendingToolCalls` 已经是现有 `AgentState` 的事实字段
+- telemetry 不应再复制第二份 pending tools 真值
+- 上层若只需要数量，可直接读取 `pendingToolCalls.size`
 
 ## 3.3 向后兼容优先
 
@@ -75,7 +81,6 @@
 export interface AgentTelemetry {
     contextTokens?: number | null;
     contextWindow?: number | null;
-    pendingToolCallCount: number;
     consecutiveErrors: number;
     lastStopReason?: "stop" | "length" | "toolUse" | "error" | "aborted";
     lastTurnStartedAt?: number;
@@ -94,18 +99,43 @@ export interface AgentTelemetry {
 - `contextTokens` 必须允许 `null`
 - `contextWindow` 允许缺失
 - 不建议把百分比作为真值字段固化到 core
+- pending tools 数量继续来自 `AgentState.pendingToolCalls.size`
 
-## 4.2 `AgentState.telemetry`
+## 4.2 `AgentRuntimeState`
+
+如果后续多个插件都需要共享“结论层状态”，可以在 core 提供一个极小的 slot，但 core 本身不负责评估逻辑。
+
+推荐最小形态：
+
+```typescript
+export interface AgentRuntimeState {
+    health: "operational" | "degraded" | "fault";
+    details?: Record<string, unknown>;
+}
+```
+
+边界约束：
+
+- core 只定义 `health` 的最小基线
+- `details` 由 extension / host 自行约定 schema
+- 不把 `fatigued`、`distracted`、`energetic` 这类产品语义写死进 core 枚举
+
+## 4.3 `AgentState` 扩展字段
 
 推荐在 `AgentState` 中加入：
 
 ```typescript
+runtimeState?: AgentRuntimeState;
 telemetry: AgentTelemetry;
 ```
 
-而不是直接引入 `EntityState` 这类偏解释性的结构。
+建议顺序：
 
-## 4.3 `AgentStateChangeEvent`
+- `telemetry` 是第一优先级
+- `runtimeState` 只有在多个上层都稳定依赖结论层状态时再下沉
+- 不再直接引入 `EntityState` 这类偏解释性的结构
+
+## 4.4 `AgentStateChangeEvent`
 
 推荐新增事件：
 
@@ -115,7 +145,7 @@ type AgentEvent =
     | {
         type: "state_change";
         state: AgentState;
-        changed: Array<string>;
+        changed: string[];
       };
 ```
 
@@ -203,6 +233,7 @@ export interface ContextEstimate {
 core 只需要提供：
 
 - telemetry
+- 可选 runtimeState slot
 - 可选 request metadata
 
 不需要知道：
@@ -215,11 +246,12 @@ core 只需要提供：
 
 Heartbeat 最直接受益于：
 
-- `pendingToolCallCount`
+- `pendingToolCalls.size`
 - `consecutiveErrors`
 - `lastStopReason`
 - `contextTokens`
 - `contextWindow`
+- 可选 `runtimeState?.health`
 
 这正是最适合进入 core 的部分。
 
@@ -254,10 +286,11 @@ A2A 对 core 的要求最小。
 - `AgentState.telemetry`
 - `state_change`
 
-## Phase 2: 评估 request metadata
+## Phase 2: 评估最小 runtimeState slot 和 request metadata
 
-当上层多个插件都需要显式标记来源时，再沉淀：
+当上层多个插件都稳定依赖同一批结论层状态，或都需要显式标记来源时，再沉淀：
 
+- `AgentRuntimeState`
 - `RequestMetadata`
 - 与 `pi-ai` request metadata 的映射路径
 
@@ -273,7 +306,7 @@ A2A 对 core 的要求最小。
 
 例如：
 
-- 直接把 fatigue 写入 core
+- 直接把 fatigue/energy 写成 core 枚举
 - 直接把工作目标写入 core
 - 直接把 heartbeat timer 写入 core
 
@@ -312,4 +345,3 @@ A2A 对 core 的要求最小。
 一句话总结：
 
 > `pi-agent-core` 应沉淀的是“自治所需的客观基础设施”，而不是“自治本身”。
-
