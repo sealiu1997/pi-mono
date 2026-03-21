@@ -1,0 +1,63 @@
+{
+	"name": "@sealiu1997/openclaw-agent-state-self-regulation",
+	"version": "0.58.4",
+	"description": "OpenClaw-native adapter plugin for agent-state-self-regulation",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"docs",
+		"openclaw.plugin.json",
+		"README.md",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"dev": "tsgo -p tsconfig.build.json --watch --preserveWatchOutput",
+		"check": "tsgo -p tsconfig.build.json --noEmit",
+		"prepublishOnly": "npm run clean && npm run build"
+	},
+	"openclaw": {
+		"extensions": [
+			"./dist/index.js"
+		]
+	},
+	"dependencies": {
+		"@sinclair/typebox": "^0.34.41"
+	},
+	"peerDependencies": {
+		"@mariozechner/pi-agent-core": "^0.58.4",
+		"openclaw": ">=2026.3.14"
+	},
+	"devDependencies": {
+		"@types/node": "^24.3.0",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3"
+	},
+	"keywords": [
+		"openclaw-plugin",
+		"openclaw",
+		"agent",
+		"extension",
+		"context-window",
+		"self-regulation"
+	],
+	"author": "Haiyang Liu",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/sealiu1997/pi-mono.git",
+		"directory": "packages/openclaw-agent-state-self-regulation"
+	},
+	"engines": {
+		"node": ">=20.6.0"
+	}
+}

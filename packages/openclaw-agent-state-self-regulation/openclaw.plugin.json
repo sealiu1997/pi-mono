@@ -1,0 +1,58 @@
+{
+	"id": "agent-state-self-regulation",
+	"name": "Agent State Self Regulation",
+	"description": "OpenClaw-native adapter for runtime state assessment, prompt injection, and host capability-aware session regulation.",
+	"configSchema": {
+		"type": "object",
+		"additionalProperties": false,
+		"properties": {
+			"tightPercent": {
+				"type": "number",
+				"minimum": 0,
+				"maximum": 100,
+				"default": 70
+			},
+			"criticalPercent": {
+				"type": "number",
+				"minimum": 0,
+				"maximum": 100,
+				"default": 85
+			},
+			"defaultProfile": {
+				"type": "string",
+				"enum": ["host-default", "light", "standard", "aggressive"],
+				"default": "host-default"
+			},
+			"enableNewSession": {
+				"type": "boolean",
+				"default": true
+			},
+			"injectRuntimeState": {
+				"type": "boolean",
+				"default": true
+			}
+		}
+	},
+	"uiHints": {
+		"tightPercent": {
+			"label": "Tight Threshold",
+			"help": "Context pressure threshold applied to runtime.agent.getContextUsage()."
+		},
+		"criticalPercent": {
+			"label": "Critical Threshold",
+			"help": "Critical pressure threshold applied to runtime.agent.getContextUsage()."
+		},
+		"defaultProfile": {
+			"label": "Default Profile",
+			"help": "Default profile hint used when the adapter requests compaction."
+		},
+		"enableNewSession": {
+			"label": "Enable New Session",
+			"help": "Allows the adapter and the agent tool to request fresh-session transitions."
+		},
+		"injectRuntimeState": {
+			"label": "Inject Runtime State",
+			"help": "Prepends runtime state metadata to the agent prompt when the adapter has actionable data to inject."
+		}
+	}
+}
